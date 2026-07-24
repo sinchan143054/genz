@@ -1,29 +1,24 @@
-# Node
-node_modules/
-.next/
-out/
-
 # Python
 __pycache__/
-*.pyc
-.venv/
-venv/
+*.py[cod]
 
 # Environment
 .env
 .env.local
-.env.*
 
-# Build
-dist/
-build/
+# Uploads
+uploads/
+
+# Node
+node_modules/
+.next/
 
 # Logs
 *.log
 
-# OS
-.DS_Store
-Thumbs.db
+# VS Code
+.vscode/
 
-# Uploads
-backend/uploads/
+# Python Virtual Env
+venv/
+.venv/
