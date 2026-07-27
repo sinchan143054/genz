@@ -1,10 +1,11 @@
 "use client";
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useUser, useAuth as useClerkAuth } from '@clerk/nextjs';
 import axios from 'axios';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 interface UserProfile {
   id: number;
+  clerk_id?: string;
   email: string;
   name: string;
   bio?: string;
@@ -13,95 +14,142 @@ interface UserProfile {
   accent_color: string;
   language: string;
   share_insights: boolean;
+  notify_daily_reminder?: boolean;
+  notify_streak_milestones?: boolean;
+  notify_weekly_digest?: boolean;
+  tree_points?: number;
 }
 
 interface AuthContextValue {
   user: UserProfile | null;
   loading: boolean;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: { email: string; name: string; password: string }) => Promise<void>;
   logout: () => void;
+  refetchUser: () => Promise<void>;
+  setAuthToken: (token: string) => void;
   getAuthHeaders: () => { Authorization?: string };
 }
+
+import { API_BASE_URL } from '../lib/api';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+  const { getToken, signOut } = useClerkAuth();
+
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('growth_token') : null;
-    if (saved) {
-      setToken(saved);
-    } else {
+  const syncBackendUser = async () => {
+    try {
+      let jwtToken: string | null = token;
+
+      if (!jwtToken) {
+        try {
+          jwtToken = await getToken();
+        } catch (err) {
+          console.log("Clerk token note:", err);
+        }
+      }
+
+      if (!jwtToken && typeof window !== 'undefined') {
+        jwtToken = localStorage.getItem('growth_token');
+      }
+
+      if (jwtToken) {
+        setToken(jwtToken);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('growth_token', jwtToken);
+        }
+
+        const res = await axios.get(
+          `${API_BASE_URL}/api/auth/me`,
+          {
+            headers: { Authorization: `Bearer ${jwtToken}` },
+          }
+        );
+
+        if (res.data) {
+          setUser(res.data);
+          return;
+        }
+      }
+
+      if (clerkUser) {
+        setUser({
+          id: 0,
+          clerk_id: clerkUser.id,
+          email: clerkUser.primaryEmailAddress?.emailAddress || 'explorer@genzgrowth.app',
+          name: clerkUser.fullName || clerkUser.firstName || 'Growth Explorer',
+          avatar_url: clerkUser.imageUrl,
+          theme: 'dark',
+          accent_color: '#7c3aed',
+          language: 'en',
+          share_insights: true,
+          tree_points: 0,
+        });
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error("Backend auth sync error:", error);
+      if (clerkUser) {
+        setUser({
+          id: 0,
+          clerk_id: clerkUser.id,
+          email: clerkUser.primaryEmailAddress?.emailAddress || 'explorer@genzgrowth.app',
+          name: clerkUser.fullName || clerkUser.firstName || 'Growth Explorer',
+          avatar_url: clerkUser.imageUrl,
+          theme: 'dark',
+          accent_color: '#7c3aed',
+          language: 'en',
+          share_insights: true,
+          tree_points: 0,
+        });
+      } else {
+        setUser(null);
+      }
+    } finally {
       setLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    async function loadProfile() {
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(response.data);
-      } catch (error) {
-        console.error(error);
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem('growth_token');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProfile();
-  }, [token]);
-
-  const login = async (email: string, password: string) => {
-    const body = new URLSearchParams();
-    body.append('username', email);
-    body.append('password', password);
-    const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, body.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-    const newToken = response.data.access_token;
-    setToken(newToken);
-    localStorage.setItem('growth_token', newToken);
-    router.push('/dashboard');
   };
 
-  const register = async (data: { email: string; name: string; password: string }) => {
-    const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, data);
-    const newToken = response.data.access_token;
+  useEffect(() => {
+    if (clerkLoaded) {
+      syncBackendUser();
+    }
+  }, [clerkLoaded, clerkUser]);
+
+  const setAuthToken = (newToken: string) => {
     setToken(newToken);
-    localStorage.setItem('growth_token', newToken);
-    router.push('/dashboard');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('growth_token', newToken);
+    }
+    syncBackendUser();
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem('growth_token');
-    router.push('/signin');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('growth_token');
+    }
+    try {
+      signOut();
+    } catch (err) {
+      console.log("Signout note:", err);
+    }
   };
 
   const getAuthHeaders = useMemo(
     () => () => (token ? { Authorization: `Bearer ${token}` } : {}),
-    [token],
+    [token]
   );
 
   return (
-    <AuthContext.Provider value={{ user, loading, token, login, register, logout, getAuthHeaders }}>
+    <AuthContext.Provider value={{ user, loading, token, logout, refetchUser: syncBackendUser, setAuthToken, getAuthHeaders }}>
       {children}
     </AuthContext.Provider>
   );
@@ -114,3 +162,4 @@ export function useAuth() {
   }
   return context;
 }
+

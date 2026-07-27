@@ -1,144 +1,221 @@
 "use client";
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, Clock3, Heart, Sparkles } from 'lucide-react';
+import {
+  BarChart3,
+  Sparkles,
+  TrendingUp,
+  Heart,
+  Smile,
+  Zap,
+  Award,
+  Calendar,
+  CheckCircle2,
+  AlertTriangle,
+  BrainCircuit,
+  BookOpen,
+} from 'lucide-react';
 import { DashboardShell } from '../../../components/DashboardShell';
 import { ProtectedPage } from '../../../components/ProtectedPage';
 import { useAuth } from '../../../context/AuthContext';
 import { api, authHeaders } from '../../../lib/api';
 
-interface InsightSnapshot {
+interface InsightData {
   happiness_percentage: number;
+  stress_level: number;
+  confidence_level: number;
+  gratitude_score: number;
+  mindfulness_score: number;
   weekly_streak: number;
   monthly_growth: number;
-  emotion_timeline: Array<{ date: string; mood: string; emoji: string }>;
   top_moods: string[];
-}
-
-interface JournalEntry {
-  id: number;
-  title: string;
-  content: string;
-  mood: string;
-  emoji: string;
-  created_at: string;
+  emotion_timeline: any[];
+  weekly_summary: str;
+  achievements: any[];
+  stress_mentions?: number;
+  anxiety_mentions?: number;
+  total_reflections?: number;
+  total_memories?: number;
 }
 
 export default function InsightsPage() {
   const { token } = useAuth();
-  const [insights, setInsights] = useState<InsightSnapshot | null>(null);
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [data, setData] = useState<InsightData | null>(null);
+  const [timeframe, setTimeframe] = useState<'weekly' | 'monthly' | 'yearly'>('weekly');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadInsights() {
-      if (!token) return;
-      try {
-        const [summaryResponse, journalResponse] = await Promise.all([
-          api.get('/api/insights/summary', { headers: authHeaders(token) }),
-          api.get('/api/journal/entries', { headers: authHeaders(token) }),
-        ]);
-        setInsights(summaryResponse.data);
-        setEntries(journalResponse.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+  const loadInsights = async () => {
+    try {
+      const res = await api.get('/api/insights/summary', {
+        headers: authHeaders(token || undefined),
+      });
+      setData(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-    loadInsights();
-  }, [token]);
+  };
 
-  const latestEntry = entries[0];
-  const todayMood = insights?.top_moods?.[0] ?? 'reflective';
+  useEffect(() => {
+    loadInsights();
+    const handleInsightsUpdate = () => loadInsights();
+    if (typeof window !== "undefined") {
+      window.addEventListener("insights_updated", handleInsightsUpdate);
+      window.addEventListener("journal_updated", handleInsightsUpdate);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("insights_updated", handleInsightsUpdate);
+        window.removeEventListener("journal_updated", handleInsightsUpdate);
+      }
+    };
+  }, [token]);
 
   return (
     <ProtectedPage>
       <DashboardShell>
-        <div className="space-y-6">
-          <motion.section initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="glass-card rounded-[32px] border border-white/10 p-8 shadow-glow">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-[0.35em] text-violet-200/80">Insights</p>
-                <h1 className="mt-3 text-3xl font-semibold text-white">Understand your emotional trends and growth score.</h1>
-                <p className="mt-3 max-w-2xl text-slate-300">Track your mood rhythm, celebrate streaks, and discover the patterns beneath your reflections.</p>
+        <div className="space-y-8 max-w-6xl mx-auto">
+          {/* Hero Section */}
+          <div className="rounded-[32px] border border-white/10 bg-gradient-to-r from-violet-950/60 via-slate-900 to-slate-950 p-8 shadow-2xl backdrop-blur-xl relative space-y-4">
+            <span className="rounded-full bg-violet-500/20 px-3.5 py-1 text-[10px] font-bold text-violet-300 uppercase tracking-widest">
+              Shared Ecosystem Emotional Analytics
+            </span>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white">Your Growth Story</h1>
+            
+            {/* AI Growth Summary Narrative */}
+            {data?.weekly_summary && (
+              <div className="rounded-2xl border border-violet-500/30 bg-violet-900/20 p-4 space-y-1">
+                <span className="text-[10px] uppercase font-bold text-violet-300 flex items-center gap-1.5">
+                  <BrainCircuit className="h-3.5 w-3.5 text-violet-400" /> AI Progress Synthesis
+                </span>
+                <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                  {data.weekly_summary}
+                </p>
               </div>
-              <div className="rounded-3xl bg-slate-950/80 p-5 ring-1 ring-white/10">
-                <p className="text-sm uppercase tracking-[0.35em] text-slate-400">Mood balance</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{insights?.happiness_percentage ?? '--'}%</p>
-              </div>
-            </div>
-          </motion.section>
+            )}
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <InsightCard icon={<Heart className="h-5 w-5 text-rose-300" />} label="Happiness" value={`${insights?.happiness_percentage ?? '--'}%`} />
-            <InsightCard icon={<Clock3 className="h-5 w-5 text-cyan-300" />} label="Weekly streak" value={`${insights?.weekly_streak ?? '--'} days`} />
-            <InsightCard icon={<Sparkles className="h-5 w-5 text-violet-300" />} label="Growth score" value={`${insights?.monthly_growth ?? '--'}%`} />
+            {/* Timeframe Filter */}
+            <div className="flex gap-2 pt-2">
+              {(['weekly', 'monthly', 'yearly'] as const).map((tf) => (
+                <button
+                  key={tf}
+                  onClick={() => setTimeframe(tf)}
+                  className={`rounded-xl px-4 py-2 text-xs font-semibold capitalize transition ${
+                    timeframe === tf
+                      ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                      : "border border-white/10 bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {tf} View
+                </button>
+              ))}
+            </div>
           </div>
 
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }} className="glass-card rounded-[32px] border border-white/10 p-6 shadow-glow">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <h2 className="text-xl font-semibold text-white">Journal activity</h2>
-              <p className="text-sm text-slate-400">{loading ? 'Loading your journal rhythm...' : `${entries.length} entries collected`}</p>
-            </div>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                <p className="text-sm text-slate-400">Latest entry</p>
-                <p className="mt-2 text-lg font-semibold text-white">{latestEntry?.title ?? 'No journal entry yet'}</p>
-                <p className="mt-2 text-sm text-slate-400">{latestEntry?.created_at ? new Date(latestEntry.created_at).toLocaleDateString() : 'Start journaling to unlock insights'}</p>
-              </div>
-              <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                <p className="text-sm text-slate-400">Favorite mood</p>
-                <p className="mt-2 text-lg font-semibold text-white">{todayMood}</p>
-                <p className="mt-2 text-sm text-slate-400">Based on the entries that are most common for you.</p>
-              </div>
-              <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                <p className="text-sm text-slate-400">Mood balance</p>
-                <p className="mt-2 text-lg font-semibold text-white">{insights?.happiness_percentage ?? '--'}%</p>
-                <p className="mt-2 text-sm text-slate-400">Positive reflections are shaping your growth score.</p>
-              </div>
-            </div>
-          </motion.div>
+          {/* Real Analytics Overview Meters */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <DimensionMeter label="Happiness Index" value={data?.happiness_percentage ?? 50} color="from-amber-400 to-rose-400" />
+            <DimensionMeter label="Stress Balance" value={data ? Math.max(0, 100 - data.stress_level) : 50} color="from-teal-400 to-emerald-400" />
+            <DimensionMeter label="Confidence" value={data?.confidence_level ?? 50} color="from-violet-400 to-indigo-400" />
+            <DimensionMeter label="Gratitude Index" value={data?.gratitude_score ?? 50} color="from-rose-400 to-pink-400" />
+            <DimensionMeter label="Mindfulness" value={data?.mindfulness_score ?? 50} color="from-indigo-400 to-purple-400" />
+          </div>
 
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }} className="glass-card rounded-[32px] border border-white/10 p-6 shadow-glow">
-            <h2 className="text-xl font-semibold text-white">Emotion timeline</h2>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {(insights?.emotion_timeline ?? []).slice(-6).map((entry) => (
-                <div key={entry.date + entry.mood} className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-                  <p className="text-sm text-slate-400">{entry.date}</p>
-                  <p className="mt-2 text-lg font-semibold text-white">{entry.mood}</p>
-                  <p className="mt-2 text-3xl">{entry.emoji}</p>
-                </div>
-              ))}
-              {!insights?.emotion_timeline?.length && !loading && <p className="text-sm text-slate-400">Write more journal entries to populate your emotional timeline.</p>}
-            </div>
-          </motion.div>
+          {/* Activity Breakdown Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard label="Total Reflections" value={`${data?.total_reflections ?? 0}`} icon={BookOpen} color="text-violet-400" />
+            <MetricCard label="Memories Stored" value={`${data?.total_memories ?? 0}`} icon={Sparkles} color="text-amber-400" />
+            <MetricCard label="Stress Mentions" value={`${data?.stress_mentions ?? 0}`} icon={AlertTriangle} color="text-rose-400" />
+            <MetricCard label="Weekly Streak" value={`${data?.weekly_streak ?? 1} Days`} icon={TrendingUp} color="text-emerald-400" />
+          </div>
 
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55, delay: 0.1 }} className="glass-card rounded-[32px] border border-white/10 p-6 shadow-glow">
-            <h2 className="text-xl font-semibold text-white">Top moods</h2>
-            <div className="mt-5 flex flex-wrap gap-3">
-              {insights?.top_moods?.map((mood) => (
-                <span key={mood} className="rounded-full bg-violet-500/10 px-4 py-2 text-sm text-slate-100">{mood}</span>
-              ))}
-              {!insights?.top_moods?.length && !loading && <p className="text-sm text-slate-400">Your most common moods will appear here once you journal consistently.</p>}
+          {/* Growth Radar & Timeline Grid */}
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Timeline Breakdown */}
+            <div className="rounded-[32px] border border-white/10 bg-slate-900/60 p-7 space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-violet-400" /> Emotion Pulse Log
+                </h3>
+                <span className="text-xs text-slate-400">{timeframe} trend</span>
+              </div>
+
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {(!data?.emotion_timeline || data.emotion_timeline.length === 0) ? (
+                  <p className="text-xs text-slate-400 text-center py-8">Write your first reflection to generate your emotion log.</p>
+                ) : (
+                  data.emotion_timeline.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-3.5 text-xs">
+                      <span className="text-slate-400 font-mono">{item.date}</span>
+                      <span className="font-semibold text-white capitalize flex items-center gap-1.5">
+                        <span>{item.emoji}</span> {item.mood}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </motion.div>
+
+            {/* Achievements Unlocked */}
+            <div className="rounded-[32px] border border-white/10 bg-slate-900/60 p-7 space-y-6 shadow-xl">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Award className="h-5 w-5 text-amber-400" /> Growth Badges & Milestones
+                </h3>
+                <span className="text-xs text-violet-300 font-semibold">Real Milestones</span>
+              </div>
+
+              <div className="space-y-3">
+                {data?.achievements?.map((ach) => (
+                  <div
+                    key={ach.id}
+                    className={`flex items-center gap-4 rounded-2xl border p-4 transition ${
+                      ach.unlocked
+                        ? "border-violet-500/40 bg-violet-950/20 text-white"
+                        : "border-white/5 bg-slate-950/40 text-slate-500 opacity-60"
+                    }`}
+                  >
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl font-bold ${
+                      ach.unlocked ? "bg-amber-400/20 text-amber-300" : "bg-slate-800 text-slate-500"
+                    }`}>
+                      🏆
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-sm font-bold text-white truncate">{ach.title}</p>
+                      <p className="text-xs text-slate-400 truncate">{ach.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </DashboardShell>
     </ProtectedPage>
   );
 }
 
-function InsightCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function DimensionMeter({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="glass-card rounded-[32px] border border-white/10 p-6 shadow-glow">
-      <div className="flex items-center gap-4">
-        <div className="rounded-3xl bg-slate-900/70 p-4">{icon}</div>
-        <div>
-          <p className="text-sm text-slate-400">{label}</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
-        </div>
+    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 space-y-2 text-center backdrop-blur-md">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+      <p className="text-2xl font-extrabold text-white">{value}%</p>
+      <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden mt-2">
+        <div className={`h-full rounded-full bg-gradient-to-r ${color}`} style={{ width: `${Math.min(100, value)}%` }} />
       </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, icon: Icon, color }: any) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-4 space-y-2 backdrop-blur-md">
+      <div className={`flex items-center justify-between ${color}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="text-xl font-bold text-white">{value}</p>
+      <p className="text-[10px] text-slate-400 uppercase tracking-wider">{label}</p>
     </div>
   );
 }

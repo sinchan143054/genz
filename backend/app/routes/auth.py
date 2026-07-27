@@ -13,21 +13,25 @@ async def register(user: schemas.UserCreate, session: AsyncSession = Depends(dat
     existing = result.scalars().first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already registered")
+    
+    hashed_pwd = auth.get_password_hash(user.password) if user.password else None
     new_user = models.User(
         email=user.email,
-        name=user.name,
-        hashed_password=auth.get_password_hash(user.password),
-        bio=user.bio or "Dream big, feel deeply.",
+        name=user.name or "Growth Explorer",
+        hashed_password=hashed_pwd,
+        bio=user.bio or "Dream big, feel deeply, grow daily.",
         avatar_url=user.avatar_url or "",
-        theme=user.theme or "system",
-        accent_color=user.accent_color or "#8b5cf6",
+        theme=user.theme or "dark",
+        accent_color=user.accent_color or "#7c3aed",
         language=user.language or "en",
         share_insights=user.share_insights if user.share_insights is not None else True,
+        tree_points=0,
     )
     session.add(new_user)
     await session.commit()
     await session.refresh(new_user)
-    access_token = auth.create_access_token({"user_id": new_user.id})
+    
+    access_token = auth.create_access_token({"user_id": new_user.id, "email": new_user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/login", response_model=schemas.Token)
@@ -35,9 +39,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Async
     user = await auth.authenticate_user(session, form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
-    access_token = auth.create_access_token({"user_id": user.id})
+    access_token = auth.create_access_token({"user_id": user.id, "email": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=schemas.UserResponse)
 async def read_me(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
+

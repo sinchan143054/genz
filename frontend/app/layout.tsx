@@ -1,16 +1,31 @@
-import './globals.css';
-import { AuthProvider } from '../context/AuthContext';
+import type { Metadata } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
+import { Inter } from "next/font/google";
+import { AuthProvider } from "../context/AuthContext";
+import "./globals.css";
 
-export const metadata = {
-  title: 'Gen Z Growth Companion',
-  description: 'AI-powered growth platform for self-aware Gen Z journeys.',
+const inter = Inter({
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "GenZ Growth Companion",
+  description: "AI-powered personal growth companion",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
-      <body>
-        <AuthProvider>{children}</AuthProvider>
+      <body className={inter.className}>
+        <ClerkProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ClerkProvider>
       </body>
     </html>
   );
