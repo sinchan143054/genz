@@ -12,13 +12,25 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+if DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("?sslmode=require&", "?")
+    DATABASE_URL = DATABASE_URL.replace("&sslmode=require", "")
+    DATABASE_URL = DATABASE_URL.replace("?sslmode=require", "")
+    DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
+    DATABASE_URL = DATABASE_URL.replace("?&", "?")
+    DATABASE_URL = DATABASE_URL.rstrip("?&")
+
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is not set.")
 
 is_sqlite = DATABASE_URL.startswith("sqlite")
-is_ssl_required = "neon.tech" in DATABASE_URL or "sslmode=require" in DATABASE_URL or os.getenv("DB_SSL_REQUIRE", "").lower() == "true"
+is_ssl_required = (
+    "neon.tech" in DATABASE_URL
+    or os.getenv("DB_SSL_REQUIRE", "").lower() == "true"
+)
 
 connect_args = {}
+
 if is_ssl_required and not is_sqlite:
     connect_args["ssl"] = "require"
     connect_args["command_timeout"] = 60
@@ -30,12 +42,14 @@ engine_kwargs = {
 }
 
 if not is_sqlite:
-    engine_kwargs.update({
-        "pool_pre_ping": True,
-        "pool_recycle": 300,
-        "pool_size": 5,
-        "max_overflow": 10,
-    })
+    engine_kwargs.update(
+        {
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+            "pool_size": 5,
+            "max_overflow": 10,
+        }
+    )
 
 engine = create_async_engine(
     DATABASE_URL,
