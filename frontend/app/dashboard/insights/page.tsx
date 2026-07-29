@@ -30,7 +30,7 @@ interface InsightData {
   monthly_growth: number;
   top_moods: string[];
   emotion_timeline: any[];
-  weekly_summary: str;
+  weekly_summary: string;
   achievements: any[];
   stress_mentions?: number;
   anxiety_mentions?: number;
